@@ -1,0 +1,3 @@
+# Runtime state is written here while developing from the source tree.
+# It must not restart the Tauri dev watcher after config/local-storage writes.
+Mezeporta/
