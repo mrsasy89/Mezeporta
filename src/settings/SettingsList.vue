@@ -130,7 +130,13 @@ const settingsLockTooltip = computed(() =>
 
 async function onChooseFolder() {
   if (sessionSettingsLocked.value) return;
-  const folder = await open({ directory: true });
+
+  const folder = isLinuxHost.value
+    ? await invoke("choose_linux_game_folder", {
+        defaultPath: effectiveFolder.value ?? null,
+      })
+    : await open({ directory: true });
+
   if (typeof folder === "string") {
     storeMut.gameFolder = folder;
     isEditingGameFolder.value = false;

@@ -4177,6 +4177,71 @@ async fn load_msg_board(
 }
 
 #[tauri::command]
+async fn choose_linux_game_folder(default_path: Option<String>) -> Result<Option<String>, String> {
+    #[cfg(windows)]
+    {
+        let _ = default_path;
+        return Err("Linux folder picker is unavailable on Windows".into());
+    }
+
+    #[cfg(not(windows))]
+    {
+        tauri::async_runtime::spawn_blocking(move || {
+            let initial_path = default_path
+                .filter(|path| !path.trim().is_empty())
+                .unwrap_or_else(|| {
+                    std::env::var("HOME")
+                        .map(|home| format!("{home}/Applications"))
+                        .unwrap_or_else(|_| ".".into())
+                });
+
+            let inside_distrobox = Path::new("/usr/bin/distrobox-host-exec").is_file();
+
+            let mut command = if inside_distrobox {
+                let mut command = Command::new("distrobox-host-exec");
+                command.arg("kdialog");
+                command
+            } else {
+                Command::new("kdialog")
+            };
+
+            let output = command
+                .arg("--getexistingdirectory")
+                .arg(initial_path)
+                .arg("--title")
+                .arg("Select Monster Hunter Frontier Z folder")
+                .output()
+                .map_err(|error| format!("failed to start Linux folder picker: {error}"))?;
+
+            if output.status.success() {
+                let selected = String::from_utf8(output.stdout).map_err(|error| {
+                    format!("folder picker returned invalid text: {error}")
+                })?;
+                let selected = selected.trim();
+
+                if selected.is_empty() {
+                    return Ok(None);
+                }
+                if !Path::new(selected).is_dir() {
+                    return Err("folder picker returned an invalid directory".into());
+                }
+
+                return Ok(Some(selected.to_string()));
+            }
+
+            if output.status.code() == Some(1) {
+                return Ok(None);
+            }
+
+            let message = String::from_utf8_lossy(&output.stderr);
+            Err(format!("Linux folder picker failed: {}", message.trim()))
+        })
+        .await
+        .map_err(|error| format!("Linux folder picker task failed: {error}"))?
+    }
+}
+
+#[tauri::command]
 async fn set_game_folder(
     _app_handle: AppHandle,
     state: tauri::State<'_, TauriState>,
@@ -5677,6 +5742,7 @@ fn main() {
                     set_endpoints,
                     set_remote_endpoints,
                     set_current_endpoint,
+                    choose_linux_game_folder,
                     set_game_folder,
                     load_msg_board,
                     set_serverlist_url,
