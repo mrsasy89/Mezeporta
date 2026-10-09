@@ -70,27 +70,33 @@ if "--stdin-b64" in args:
     except (ValueError, UnicodeError) as error:
         print("Payload validation failed:", type(error).__name__, flush=True)
         sys.exit(65)
-    import tempfile, shutil, pathlib
+    import tempfile, pathlib
     # Relative generated paths keep game-folder spaces and shell characters
     # out of cmd.exe syntax. The private directory contains the credentials.
     with tempfile.TemporaryDirectory(prefix="launch-", dir="Mezeporta") as tmp:
         folder = pathlib.Path(tmp)
-        shutil.copyfile(args[args.index("--stdin-b64") - 1], folder / "helper.exe")
         (folder / "input.b64").write_bytes(payload)
         os.chmod(folder / "input.b64", 0o600)
         win = str(folder).replace("/", chr(92))
-        host_cwd = "Z:" + os.getcwd().replace("/", chr(92))
-        if any(c in host_cwd for c in "\"%!?&|<>^\r\n"):
-            sys.exit("Unsupported cmd.exe character in diagnostic game path")
-        line = ("cd /d " + chr(34) + host_cwd + chr(34)
-                + " && Mezeporta" + chr(92) + "bin" + chr(92)
+        line = ("Mezeporta" + chr(92) + "bin" + chr(92)
                 + "meze-deps-console-debug.exe --stdin-b64 < "
                 + win + chr(92) + "input.b64 > "
                 + win + chr(92) + "output.log 2>&1")
-        print("Transport: Windows file redirection", flush=True)
-        result = subprocess.run([sys.executable, proton, "run", "cmd.exe", "/d", "/c", line],
-                                stdin=subprocess.DEVNULL)
+        print("Transport: Windows file redirection from inherited host cwd", flush=True)
+        proton_output = folder / "proton.log"
+        with proton_output.open("wb") as proton_log:
+            result = subprocess.run(
+                [sys.executable, proton, "run", "cmd.exe", "/d", "/c", line],
+                stdin=subprocess.DEVNULL,
+                stdout=proton_log,
+                stderr=subprocess.STDOUT,
+            )
         output = folder / "output.log"
+        print("Proton output bytes:", proton_output.stat().st_size, flush=True)
+        if proton_output.stat().st_size:
+            sys.stdout.flush()
+            sys.stdout.buffer.write(proton_output.read_bytes())
+            sys.stdout.buffer.flush()
         print("Helper output file exists:", output.exists(), flush=True)
         if output.exists():
             sys.stdout.flush()
