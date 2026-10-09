@@ -1696,7 +1696,12 @@ impl ResolvedWineRuntime {
                 command.env("PROTON_USE_WINED3D", "1");
             }
         }
-        if let Some(prefix) = self.wine_prefix.as_ref() {
+        if self.kind == WineRuntimeKind::Proton {
+            // Proton derives its Wine prefix from STEAM_COMPAT_DATA_PATH/pfx.
+            // An inherited WINEPREFIX can make the host runtime use the wrong
+            // directory, especially when launched through Distrobox.
+            command.env_remove("WINEPREFIX");
+        } else if let Some(prefix) = self.wine_prefix.as_ref() {
             command.env("WINEPREFIX", prefix);
         } else {
             command.env_remove("WINEPREFIX");
@@ -1881,11 +1886,17 @@ fn resolve_wine_runtime(
     } else {
         resolve_wine_command()
     };
-    let wine_prefix = resolve_wine_prefix(game_root, launcher_prefs)?;
-    let (steam_client_path, steam_compat_data_path) = if is_proton {
-        (resolve_steam_client_path(), wine_prefix.clone())
+    let configured_prefix = resolve_wine_prefix(game_root, launcher_prefs)?;
+    let (wine_prefix, steam_client_path, steam_compat_data_path) = if is_proton {
+        let compat_data = configured_prefix
+            .ok_or_else(|| "Proton compat-data directory could not be resolved".to_string())?;
+        (
+            Some(compat_data.join("pfx")),
+            resolve_steam_client_path(),
+            Some(compat_data),
+        )
     } else {
-        (None, None)
+        (configured_prefix, None, None)
     };
     Ok(ResolvedWineRuntime {
         kind: if is_proton {
@@ -2293,17 +2304,10 @@ fn create_linux_ui_sfx_command(audio_path: &Path, volume: f32) -> Result<Command
 
 #[cfg(not(windows))]
 fn sync_wine_prefix_fonts(runtime: &ResolvedWineRuntime, game_root: &Path) {
-    let prefix_windows_dir = if runtime.kind == WineRuntimeKind::Proton {
-        runtime
-            .steam_compat_data_path
-            .as_ref()
-            .map(|p| p.join("pfx").join("drive_c").join("windows"))
-    } else {
-        runtime
-            .wine_prefix
-            .as_ref()
-            .map(|p| p.join("drive_c").join("windows"))
-    };
+    let prefix_windows_dir = runtime
+        .wine_prefix
+        .as_ref()
+        .map(|p| p.join("drive_c").join("windows"));
 
     let Some(windows_dir) = prefix_windows_dir else {
         return;
@@ -5872,4 +5876,49 @@ fn main() {
     }
     info!("app exit");
     std::process::exit(0);
+}
+
+#[cfg(all(test, not(windows)))]
+mod linux_runtime_tests {
+    use super::*;
+
+    #[test]
+    fn proton_keeps_compat_data_separate_from_wine_prefix() {
+        let game_root = Path::new("/tmp/Mezeporta Game");
+        let launcher_prefs = LauncherPrefs {
+            wine_prefix_mode: WINE_PREFIX_MODE_PROTON.to_string(),
+            ..LauncherPrefs::default()
+        };
+
+        let runtime = resolve_wine_runtime(game_root, &launcher_prefs).unwrap();
+        let compat_data = game_root.join("Mezeporta").join("ProtonData");
+
+        assert_eq!(runtime.kind, WineRuntimeKind::Proton);
+        assert_eq!(runtime.steam_compat_data_path, Some(compat_data.clone()));
+        assert_eq!(runtime.wine_prefix, Some(compat_data.join("pfx")));
+    }
+
+    #[test]
+    fn proton_removes_inherited_wineprefix_from_child_environment() {
+        let runtime = ResolvedWineRuntime {
+            kind: WineRuntimeKind::Proton,
+            wine_command: PathBuf::from("proton"),
+            wineserver_command: PathBuf::from("wineserver"),
+            wine_prefix: Some(PathBuf::from("/compat/pfx")),
+            steam_client_path: None,
+            steam_compat_data_path: Some(PathBuf::from("/compat")),
+            apply_esync_fallback: false,
+            apply_fsync_fallback: false,
+            proton_use_wined3d: false,
+        };
+        let mut command = Command::new("proton");
+
+        runtime.apply_env(&mut command);
+
+        let wineprefix = command
+            .get_envs()
+            .find(|(name, _)| *name == "WINEPREFIX")
+            .map(|(_, value)| value);
+        assert_eq!(wineprefix, Some(None));
+    }
 }
