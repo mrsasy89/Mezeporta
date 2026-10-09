@@ -16,20 +16,38 @@ fn main() {
         let _ = SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_UNAWARE_GDISCALED);
     }
 
-    let stdin_b64 = std::env::args().any(|arg| arg == "--stdin-b64");
-    if !stdin_b64 {
-        eprintln!("usage: meze-deps.exe --stdin-b64");
-        exit(1);
-    }
-
-    let mut stdin = String::new();
-    std::io::stdin().read_to_string(&mut stdin).unwrap_or_else(|e| {
-        eprintln!("error reading stdin: {e}");
-        exit(2);
-    });
+    let mut args = std::env::args().skip(1);
+    let input = match args.next().as_deref() {
+        Some("--stdin-b64") if args.next().is_none() => {
+            let mut input = String::new();
+            std::io::stdin().read_to_string(&mut input).unwrap_or_else(|e| {
+                eprintln!("error reading stdin: {e}");
+                exit(2);
+            });
+            input
+        }
+        Some("--config-b64-file") => {
+            let path = args.next().unwrap_or_else(|| {
+                eprintln!("missing path after --config-b64-file");
+                exit(1);
+            });
+            if args.next().is_some() {
+                eprintln!("unexpected argument after config file path");
+                exit(1);
+            }
+            std::fs::read_to_string(&path).unwrap_or_else(|e| {
+                eprintln!("error reading config file {path}: {e}");
+                exit(2);
+            })
+        }
+        _ => {
+            eprintln!("usage: meze-deps.exe --stdin-b64 | --config-b64-file <path>");
+            exit(1);
+        }
+    };
 
     let decoded = general_purpose::STANDARD
-        .decode(stdin.trim())
+        .decode(input.trim())
         .unwrap_or_else(|e| {
             eprintln!("error decoding base64 stdin: {e}");
             exit(3);
