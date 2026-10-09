@@ -1,12 +1,42 @@
-Mezeporta is a MHF launcher for Erupe community servers supporting 19 versions across all game branches.
+# Mezeporta SteamOS
 
-##
-### How to run
+Mezeporta is a Monster Hunter Frontier launcher for Erupe community servers,
+supporting 19 versions across all game branches. This fork focuses on running
+the launcher and Windows game client on SteamOS through Proton and Distrobox.
+
+It is based on [LilButter/Mezeporta](https://github.com/LilButter/Mezeporta).
+Active SteamOS development is maintained on the `steamos-dev` branch.
+
+> [!IMPORTANT]
+> Desktop Mode login and game launch have been verified on SteamOS with Proton
+> Experimental. Gaming Mode currently reaches game launch, but a black-screen
+> issue under Gamescope is still being investigated. Full Gaming Mode support
+> is not yet considered complete.
+
+## SteamOS status
+
+| Area | Status |
+| --- | --- |
+| Launcher build and startup in an Arch Distrobox | Verified |
+| Login, character selection and game launch in Desktop Mode | Verified |
+| Proton Experimental host execution from Distrobox | Verified |
+| Paths containing spaces | Verified |
+| Native KDE folder picker on SteamOS | Verified |
+| Hidden helper transport without a console window | Verified |
+| Portable Linux package | Desktop Mode verified |
+| Gaming Mode / Gamescope | In progress |
+| Land transition and game-server port handoff in Gaming Mode | Not yet verified |
+
+See [Docs/SteamOS.md](Docs/SteamOS.md) for the implementation notes and
+validation plan.
+
+## How to run
 
 > [!NOTE]
 > Game Dlls must be [unpacked](#unpacking-dlls) for the launcher to work.
 
-Windows & Linux: place the launcher files in your game directory next to /dat folder from the release page 
+Windows and Linux: place the launcher files in the game directory beside the
+`dat` folder.
 
 Your folder should look like this:
 
@@ -32,13 +62,9 @@ GameFolder/
   xinput1_3.dll
 ```
 
-chmod both run-mezeporta & mezeporta-bin:
+On Linux, make the launcher script and binary executable:
 ```bash
-sudo chmod +x run-mezeporta.sh
-```
-
-```bash
-sudo chmod +x mezeporta-bin
+chmod +x run-mezeporta.sh mezeporta-bin
 ```
 
 Launch command:
@@ -48,8 +74,41 @@ Launch command:
 
 _FOR S7K version move ALL files from the provided folder into the game directory with the launcher._
 
-##
-### Server Wrapper (Server Owners)
+### SteamOS Desktop Mode
+
+The currently verified development workflow runs the Linux launcher inside an
+Arch Distrobox while Proton Experimental runs on the SteamOS host:
+
+```bash
+export MEZEPORTA_PROTON_CMD="$PWD/scripts/linux/proton-host-debug.sh"
+export MEZEPORTA_HOST_PROTON="$HOME/.local/share/Steam/steamapps/common/Proton - Experimental/proton"
+
+npm run tauri:dev -- \
+  --target x86_64-unknown-linux-gnu \
+  --config src-tauri/tauri.linux.conf.json
+```
+
+In **Settings**, select the game directory and set **Wine Prefix Mode** to
+**Proton**. Proton compat data is stored at
+`<game>/Mezeporta/ProtonData`; Proton owns its `pfx` child.
+
+To build the portable package after a successful release build:
+
+```bash
+npm run tauri:build:linux:portable
+```
+
+The package is created under:
+
+```text
+src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/portable/
+```
+
+Gaming Mode validation is ongoing. Do not treat the current launcher script as
+a finished release integration until the Gamescope black-screen issue and land
+transition have both been verified.
+
+## Server Wrapper (Server Owners)
 > [!NOTE]
 > This is now OPTIONAL and you may connect to Erupe servers normally using the SignV1 option.
 
@@ -57,8 +116,7 @@ The [Wrapper](https://github.com/LilButter/Mezeporta-Wrapper) is a separate help
 
 (e.g. Mail, Distribution, Character Book, and Events)
 
-##
-### CLI Commands
+## CLI Commands
 
 | Command | Description | Default / Example |
 | --- | --- | --- |
@@ -101,8 +159,7 @@ Mezeporta --list-versions
 Mezeporta -v ZZ --list-signatures
 ```
 
-##
-### Version Support
+## Version Support
 
 | Branch | Versions
 | --- | --- |
@@ -112,8 +169,7 @@ Mezeporta -v ZZ --list-signatures
 | Z | Z1, ZZ |
 
 
-##
-### Offline-Mode
+## Offline-Mode
 | Classic | PS4 |
 | --- | --- |
 | <img src="Docs/Assets/Classic/OfflineClassic.png" alt="Classic offline mode"> | <img src="Docs/Assets/PS4/OfflinePS4.png" alt="PS4 offline mode"> |
@@ -122,15 +178,13 @@ Initial boot will bring you to Offline-mode where you can add a server.
 
 Last selected server will be used on next boot.
 
-##
-### Character Screen
+## Character Screen
 
 | Classic | PS4 |
 | --- | --- |
 | <img src="Docs/Assets/Classic/OnlineClassic2.png" alt="Classic character screen"> | <img src="Docs/Assets/PS4/OnlinePS4.png" alt="PS4 character screen"> |
 
-##
-### Custom Images
+## Custom Images
 
 Server Owners can provide the launcher with their own identity and artwork:
 - Banners
@@ -149,28 +203,24 @@ Hunters can also provide their own images by enabling Offline-Images and placing
 
 (News, Announcements, Links, ServerTag and Banners are still provided by the server while Offline-Images are enabled.)
 
-##
-### Character Book
+## Character Book
 ![Character book](Docs/Assets/BookFeature.png)
 
 Character Book uses cached character savedata to provide equipment w/deco, currency, courses, itembox and playtime for the selected character.
 
 Savedata cache is fetched at login and is cleared once the game starts. Savedata re-fetches only if cleared.
 
-##
-### Mail
+## Mail
 ![Mail viewer](Docs/Assets/MailFeature.png)
 
 Mail shows player messages, system messages, guild invites, sender, dates, and item attachments.
 
-##
-### Distributions
+## Distributions
 ![Distribution viewer](Docs/Assets/DistroFeature.png)
 
 Distributions show unclaimed rewards with title, description, type, deadlines, color-coded text, item icons, and reward details.
 
-##
-### Friends List
+## Friends List
 
 | Small List | Large List |
 | --- | --- |
@@ -178,8 +228,7 @@ Distributions show unclaimed rewards with title, description, type, deadlines, c
 
 Friends list contains your friends for the selected character also providing an online/offline icon. The pop-up changes dynamically with the amount of friends you have. MAX 50 :)
 
-##
-### Events
+## Events
 ![Event information](Docs/Assets/EventFeature.png)
 
 Active event buttons can appear in the footer area with their own information panels.
@@ -191,8 +240,7 @@ Active event buttons can appear in the footer area with their own information pa
 - Conquest
 - Hunting Tournament
 
-##
-### Settings
+## Settings
 
 | Description open | Description closed |
 | --- | --- |
@@ -200,8 +248,7 @@ Active event buttons can appear in the footer area with their own information pa
 
 The Settings page provides options ranging from launcher specific settings like launcher resolution or font, all the way to advanced graphics, audio, wine-prefix, and more.
 
-##
-### Patching
+## Patching
 
 Mezeporta has multi-server patch support!
 - Checks the selected server for patch information.
@@ -210,8 +257,7 @@ Mezeporta has multi-server patch support!
 - Downloads missing or outdated files provided by the wrapper.
 - Caches patch files under Mezeporta/Servers
 
-## 
-### Unpacking Dlls
+## Unpacking Dlls
 
 To unpack the dlls use [OllyDbg](https://ollydbg.net/download.htm)
 
@@ -223,8 +269,7 @@ You will also need the [CodeDoctor](https://github.com/JackAston/OllyDbg1plugins
 - Step 5: Happy Hunting!
 
 
-## 
-### Windows Development
+## Windows Development
 
 Requirements:
 
@@ -250,12 +295,13 @@ Build:
 npm run tauri:build
 ```
 
-##
-### WSL Linux Development
+## WSL Linux Development
 
 WSL can be used from Windows to test or build the Linux launcher.
 
-Linux and WSL builds need `src-tauri/bin/meze-deps.exe`. This helper is built on Windows because the Linux launcher still starts the Windows game client through Wine. (pre-compiled version is provided)
+Linux and WSL builds need `src-tauri/bin/meze-deps.exe` because the Linux
+launcher starts the Windows game client through Wine or Proton. A precompiled
+32-bit Windows GUI helper is included.
 
 From Windows:
 
@@ -301,8 +347,7 @@ Optional WSL variables:
 - `MEZEPORTA_WSL_DISTRO`: WSL distro name.
 - `MEZEPORTA_WSL_GPU_ADAPTER`: GPU adapter name used by the WSL GPU helper.
 
-##
-### Native Linux Development
+## Native Linux Development
 
 Requirements:
 
@@ -310,7 +355,7 @@ Requirements:
 - Rustup.
 - WebKitGTK and JavaScriptCoreGTK development packages.
 - GStreamer packages for UI audio.
-- `src-tauri/bin/meze-deps.exe`, built from Windows with `npm run meze-deps:build`.
+- The included 32-bit Windows helper at `src-tauri/bin/meze-deps.exe`.
 
 Ubuntu-based systems:
 
@@ -341,3 +386,8 @@ Build Tarball for linux:
 ```bash
 npm run tauri:build:linux:portable
 ```
+
+The full Linux build attempts to create AppImage and Debian packages before
+creating the portable archive. If AppImage bundling is unavailable on the
+current system but the release binary compiled successfully, the portable-only
+command can still package that release binary.
